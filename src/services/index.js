@@ -1,24 +1,28 @@
-import SHA256 from "crypto.js";
+const crypto = require("crypto");
 
 const EC = require("elliptic").ec;
 const ec = new EC("secp256k1");
 
-class Block {
-  constructor(timestamp, data, prevHash = "") {
+export class Block {
+  constructor(index, timestamp, data, prevHash = "") {
+    this.index = index;
     this.timestamp = timestamp;
     this.data = data;
     this.prevHash = prevHash;
-    this.hash = this.getHash;
+    this.hash = this.getHash();
     this.nonce = 0;
   }
 
   getHash = () => {
-    return SHA256(
-      this.timestamp.toString() +
-        this.prevHash +
-        JSON.stringify(this.data) +
-        this.nonce
-    ).toString();
+    return crypto
+      .createHash("sha256")
+      .update(
+        this.timestamp.toString() +
+          this.prevHash +
+          JSON.stringify(this.data) +
+          this.nonce
+      )
+      .digest("hex");
   };
 
   proofOfWork = difficulty => {
@@ -40,40 +44,49 @@ class Block {
   };
 }
 
-class BlockChain {
-  constructor() {
-    this.blockchain = [this.genesisBlock()];
-    this.difficulty = 1;
+export default class BlockChain {
+  constructor(from, to) {
+    this.blockchain = [this.genesisBlock(from, to)];
+    this.difficulty = 4;
     this.spendingTransactions = [];
     this.reward = 100;
   }
 
-  genesisBlock = () => {
-    return new Block(0, new Date.now(), "Genesis block", "0");
+  createTo({ blockchain, difficulty, spendingTransactions, reward }) {
+    this.blockchain = blockchain;
+    this.difficulty = difficulty;
+    this.spendingTransactions = spendingTransactions;
+    this.reward = reward;
+  }
+  genesisBlock (from, to) {
+    return new Block(0, new Date().toString(), [{ fromAdd: from, toAdd: to, amount: 100}], "0");
   };
 
   getLastedBlock = () => {
     return this.blockchain[this.blockchain.length - 1];
   };
 
-  miningTransactions = transactions => {
-    const rewardTx = new Transaction(null, transactions, this.reward);
+  miningTransactions = miningAddress => {
+    const rewardTx = new Transaction(null, miningAddress, this.reward);
     this.spendingTransactions.push(rewardTx);
 
     const block = new Block(
-      new Date.now(),
-      this.spendingTransactions,
+      this.getLastedBlock().index + 1,
+      new Date(),
+      [...this.spendingTransactions],
       this.getLastedBlock().hash
     );
     block.proofOfWork(this.difficulty);
 
-    console.log("Block is mined!");
+    for (let i = this.spendingTransactions.length; i > 0; i--) {
+      this.spendingTransactions.pop();
+    }
 
     this.blockchain.push(block);
-    this.spendingTransactions = [];
   };
 
   createNewBlock = newBlock => {
+    newBlock.index = this.getLastedBlock().index + 1;
     newBlock.prevHash = this.getLastedBlock().hash;
     newBlock.proofOfWork(this.difficulty);
     this.blockchain.push(newBlock);
@@ -99,36 +112,88 @@ class BlockChain {
     return true;
   };
 
-  getBalance = address => {
+  getBalance(address) {
     let balance = 0;
+    console.log("this.blockchain", this.blockchain);
     for (const block of this.blockchain) {
+      console.log(block);
       for (const trans of block.data) {
         if (trans.fromAdd === address) {
+          console.log("trans -");
           balance -= trans.amount;
         }
 
         if (trans.toAdd === address) {
+          console.log("trans +");
           balance += trans.amount;
         }
       }
     }
     return balance;
-  };
-
-  createTransaction=(transaction)=>{
-
-      if(!transaction.fromAdd || !transaction.toAdd){
-          throw new Error('Transaction must include from address and to address');
-      }
-
-      if(!transaction.isValid()){
-          throw new Error('Cannot add transaction');
-      }
-      this.spendingTransactions.push(transaction);
   }
+
+  getAllTransactions(){
+    let transactions = [];
+
+    for (const block of this.blockchain) {
+      for (const trans of block.data) {
+        transactions.push(trans);
+      }
+    }
+
+    return transactions;
+  }
+  getTransOfAddress(address) {
+    let transactions = [];
+
+    for (const block of this.blockchain) {
+      for (const trans of block.data) {
+        if (trans.fromAdd === address) {
+          transactions.push(trans);
+        }
+
+        if (trans.toAdd === address) {
+          transactions.push(trans);
+        }
+      }
+    }
+
+    for (const trans of this.spendingTransactions) {
+      if (trans.fromAdd === address) {
+        transactions.push(trans);
+      }
+
+      if (trans.toAdd === address) {
+        transactions.push(trans);
+      }
+    }
+
+    return transactions;
+  }
+
+  createTransaction = transaction => {
+    if (!transaction.fromAdd || !transaction.toAdd) {
+      throw new Error("Transaction must include from and to address");
+    }
+
+    // Verify the transactiion
+    if (!transaction.isValid()) {
+      throw new Error("Cannot add invalid transaction to chain");
+    }
+
+    if (transaction.amount <= 0) {
+      throw new Error("Transaction amount should be higher than 0");
+    }
+
+    // Making sure that the amount sent is not greater than existing balance
+    if (this.getBalance(transaction.fromAdd) < transaction.amount) {
+      throw new Error("Not enough balance");
+    }
+    this.spendingTransactions.push(transaction);
+  };
 }
 
-class Transaction {
+export class Transaction {
   constructor(fromAdd, toAdd, amount) {
     this.fromAdd = fromAdd;
     this.toAdd = toAdd;
@@ -136,10 +201,14 @@ class Transaction {
   }
 
   getHash = () => {
-    return SHA256(this.fromAdd + this.toAdd + this.amount).toString();
+    return crypto
+      .createHash("sha256")
+      .update(this.fromAdd + this.toAdd + this.amount)
+      .digest("hex");
   };
 
   signTransaction = key => {
+    console.log("key", key);
     if (key.getPublic("hex") !== this.fromAdd) {
       throw new Error("You cannot sign transactions for other wallet!");
     }

@@ -1,11 +1,11 @@
-const EC = require('elliptic').ec;
-const ec= new EC('secp256k1');
-const fs = require('fs');
+const EC = require("elliptic").ec;
+const ec = new EC("secp256k1");
 
-export const keyGeneration =()=>{
-    const privateKey = ec.genKeyPair();
-    fs.appendFile('key.txt', privateKey, function (err) {
-        if(err) throw err;
-        console.log('save');
-    })
+
+export default class keyGeneration {
+  constructor(){
+    const key = ec.genKeyPair();
+    this.privateKey = key.getPrivate('hex');
+    this.publicKey = key.getPublic('hex');
+  }
 };
