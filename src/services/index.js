@@ -47,9 +47,9 @@ export class Block {
 export default class BlockChain {
   constructor(from, to) {
     this.blockchain = [this.genesisBlock(from, to)];
-    this.difficulty = 4;
+    this.difficulty = 2;
     this.spendingTransactions = [];
-    this.reward = 100;
+    this.reward = 10;
   }
 
   createTo({ blockchain, difficulty, spendingTransactions, reward }) {
@@ -58,6 +58,12 @@ export default class BlockChain {
     this.spendingTransactions = spendingTransactions;
     this.reward = reward;
   }
+
+  init = (from, to) =>{
+    const block = new Block(0, new Date().toString(), [{ fromAdd: from, toAdd: to, amount: 100}], "0");
+    this.blockchain.push(block);
+  };
+
   genesisBlock (from, to) {
     return new Block(0, new Date().toString(), [{ fromAdd: from, toAdd: to, amount: 100}], "0");
   };

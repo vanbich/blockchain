@@ -31,7 +31,16 @@ class Detail extends React.Component {
 
       let temp = new BlockChain();
       temp.createTo(BC);
-
+      if (temp.getTransOfAddress(id).length === 0) {
+        const key = ec.genKeyPair();
+        const publicKey = key.getPublic("hex");
+        temp.init(publicKey, id);
+        console.log("temp", temp.getBalance(id));
+        this.setState({
+          blockchain: temp,
+          balance: temp.getBalance(id)
+        });
+      }
       this.setState({
         blockchain: temp,
         blocks: [...temp.blockchain],
@@ -40,9 +49,9 @@ class Detail extends React.Component {
       });
     } else {
       const key = ec.genKeyPair();
-      const publicKey = key.getPublic('hex');
-      const temp = new BlockChain(publicKey,id);
-      console.log('temp',temp.getBalance(id));
+      const publicKey = key.getPublic("hex");
+      const temp = new BlockChain(publicKey, id);
+      console.log("temp", temp.getBalance(id));
       this.setState({
         blockchain: temp,
         balance: temp.getBalance(id)
